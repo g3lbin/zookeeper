@@ -606,6 +606,8 @@
     <!-- sonarcloud properties -->
     <sonar.organization>cristiano-u08</sonar.organization>
     <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+    <sonar.projectKey>g3lbin_zookeeper</sonar.projectKey>
+    <sonar.moduleKey>${project.groupId}:${project.artifactId}</sonar.moduleKey>
 
     <!-- to aggregate JaCoCo's reports -->
     <sonar.coverage.jacoco.xmlReportPaths>${maven.multiModuleProjectDirectory}/collector-module/target/site/jacoco-aggregate/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths
