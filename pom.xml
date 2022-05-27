@@ -65,6 +65,8 @@
     <module>zookeeper-recipes</module>
     <module>zookeeper-assembly</module>
     <module>zookeeper-compatibility-tests</module>
+    <!-- wrapper to collect JaCoCo's reports -->
+    <module>collector-module</module>
   </modules>
 
   <scm>
@@ -536,6 +538,29 @@
         </pluginManagement>
       </build>
     </profile>
+    <!-- JaCoCo aggregate profile -->
+    <profile>
+      <id>coverage</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.jacoco</groupId>
+            <artifactId>jacoco-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>prepare-agent</id>
+                <goals>
+                  <goal>prepare-agent</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
   </profiles>
 
   <properties>
@@ -543,7 +568,7 @@
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
     <dependency.locations.enabled>false</dependency.locations.enabled>
-    <surefire.version>2.22.1</surefire.version>
+    <surefire.version>3.0.0-M5</surefire.version>
 
     <surefire-forkcount>8</surefire-forkcount>
     <redirectTestOutputToFile>true</redirectTestOutputToFile>
@@ -578,6 +603,9 @@
     <c-client-openssl>yes</c-client-openssl>
     <c-client-sasl>yes</c-client-sasl>
 
+    <!-- to aggregate JaCoCo's reports -->
+    <sonar.coverage.jacoco.xmlReportPaths>${maven.multiModuleProjectDirectory}/collector-module/target/site/jacoco-aggregate/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths
+>
   </properties>
 
   <dependencyManagement>
@@ -827,6 +855,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>
+          <version>${surefire.version}</version>
           <configuration>
               <trimStackTrace>false</trimStackTrace>
               <redirectTestOutputToFile>${redirectTestOutputToFile}</redirectTestOutputToFile>
