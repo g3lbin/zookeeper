@@ -38,9 +38,9 @@ public class FileTxnLogTest
 	private boolean expected;
 	
 	// appendTest parameters
-	private TxnHeader txnHeader;
-	private Record record;
-	private TxnDigest txnDigest;
+	private TxnHeader hdr;
+	private Record txn;
+	private TxnDigest digest;
 	
 	// getLogFiles parameters
 	private LogDirList list;
@@ -50,10 +50,10 @@ public class FileTxnLogTest
 	@Parameters
 	public static Collection<Object[]> data() {
 		return Arrays.asList(new Object[][] {
-			// type, expected, txnHeader, record, txnDigest, null, null
-			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), TxnBuilder.buildCreateTxn("/testTxn", "test".getBytes()), new TxnDigest(), null, null},
+			// type, expected, hdr, txn, digest, null, null
+			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), TxnBuilder.buildCreateTxn("/testTxn", "test".getBytes()), TxnBuilder.buildTxnDigest(), null, null},
 			{Type.APPEND, false, null, TxnBuilder.buildCreateTxn("/testTxn", "test".getBytes()), null, null, null},
-			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), null, new TxnDigest(), null, null},
+			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), null, TxnBuilder.buildTxnDigest(), null, null},
 			// type, expected, null, null, null, logDirList, snapshotZxid
 			{Type.GET_LFILES, true, null, null, null, LogDirList.NON_EMPTY, Long.valueOf(0)},
 			{Type.GET_LFILES, true, null, null, null, LogDirList.EMPTY, Long.valueOf(-1)},
@@ -61,20 +61,20 @@ public class FileTxnLogTest
 		});
 	}
 	
-	public FileTxnLogTest(Type type, boolean expected, TxnHeader txnHeader, Record record,
-			TxnDigest txnDigest, LogDirList list, Long snapshotZxid) throws Exception {
+	public FileTxnLogTest(Type type, boolean expected, TxnHeader hdr, Record txn,
+			TxnDigest digest, LogDirList list, Long snapshotZxid) throws Exception {
 		if (type == Type.APPEND)
-			configure(type, expected, txnHeader, record, txnDigest);
+			configure(type, expected, hdr, txn, digest);
 		else
 			configure(type, expected, list, snapshotZxid);
 	}
 	
-	public void configure(Type type, boolean expected, TxnHeader txnHeader, Record record, TxnDigest txnDigest) throws Exception {
+	public void configure(Type type, boolean expected, TxnHeader hdr, Record txn, TxnDigest digest) throws Exception {
 		this.type = type;
 		this.expected = expected;
-		this.txnHeader = txnHeader;
-		this.record = record;
-		this.txnDigest = txnDigest;
+		this.hdr = hdr;
+		this.txn = txn;
+		this.digest = digest;
 	
 		logDir = Files.createTempDirectory("zkTest").toFile();
     	fileTxnLog = new FileTxnLog(logDir);
@@ -116,7 +116,7 @@ public class FileTxnLogTest
     public void appendTest() throws IOException
     {
     	assumeTrue(type == Type.APPEND);
-    	boolean result = fileTxnLog.append(txnHeader, record, txnDigest);
+    	boolean result = fileTxnLog.append(hdr, txn, digest);
     	assertEquals(expected, result);
     }
     
@@ -169,6 +169,14 @@ public class FileTxnLogTest
     		int parentCVersion = 0;
 
     		return new CreateTxn(path, data, acl, ephemeral, parentCVersion);
+    	}
+    	
+    	public static TxnDigest buildTxnDigest() {
+    		return buildTxnDigest(0, 0L);
+    	}
+
+    	public static TxnDigest buildTxnDigest(int version, long treeDigest) {
+    		return new TxnDigest(version, treeDigest);
     	}
     }
 }
