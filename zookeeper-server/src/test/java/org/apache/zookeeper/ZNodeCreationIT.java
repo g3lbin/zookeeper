@@ -8,13 +8,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.io.File;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.zookeeper.ZooDefs.Ids;
 import org.apache.zookeeper.data.Stat;
+import org.apache.zookeeper.server.DataTree;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ServerConfig;
 import org.apache.zookeeper.server.ZKDatabase;
@@ -23,16 +26,22 @@ import org.apache.zookeeper.server.persistence.FileTxnSnapLog;
 import org.apache.zookeeper.server.quorum.QuorumPeerConfig;
 import org.awaitility.Awaitility;
 import org.junit.After;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
+import org.mockito.AdditionalMatchers;
 import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
+import org.mockito.stubbing.Answer;
 
 @RunWith (value=Parameterized.class)
 public class ZNodeCreationIT {
+	
+	@Rule public MockitoRule rule = MockitoJUnit.rule();
 	
 	enum TopDownPhase {FIRST, SECOND, THIRD, FOURTH}
 
@@ -44,11 +53,10 @@ public class ZNodeCreationIT {
 	private QuorumPeerConfig qConfig;
 	
 	// ZKDatabase parameter
-	private FileTxnSnapLog snapLog;
-	@Mock
-	FileTxnSnapLog mockedSnapLog;
-	@InjectMocks
-	ZKDatabase mockedZKDb;
+	private FileTxnSnapLog snapLog;;
+	
+	private List<File> tmpDirs;
+	private DataTree mockedDT;
 	
 	private File snapDir;
 	private TopDownPhase phase;
@@ -107,6 +115,8 @@ public class ZNodeCreationIT {
 		configureFirstPhase();
 		this.phase = TopDownPhase.SECOND;
 
+		ZKDatabase mockedZKDb = Mockito.mock(ZKDatabase.class);
+
 		sConfig = new ServerConfig();
 		qConfig = new QuorumPeerConfig();
 		zkServer = new ZooKeeperServer(txnLogFactory, sConfig.getTickTime(), sConfig.getMinSessionTimeout(), sConfig.getMaxSessionTimeout(), 
@@ -116,12 +126,52 @@ public class ZNodeCreationIT {
 	public void configureThirdPhase() throws Exception {
 		configureFirstPhase();
 		this.phase = TopDownPhase.THIRD;
-		
+
+		FileTxnSnapLog mockedSnapLog = Mockito.mock(FileTxnSnapLog.class);
+		tmpDirs = new ArrayList<>();
+		Mockito.when(mockedSnapLog.getSnapDir()).thenAnswer(new Answer<File>() {
+
+			@Override
+			public File answer(InvocationOnMock invocation) throws Throwable {
+				File tmpDir = Files.createTempDirectory("zkTest").toFile();
+				tmpDirs.add(tmpDir);
+				return tmpDir;
+			}
+		});
+		ZKDatabase mockedZKDb = Mockito.spy(new ZKDatabase(mockedSnapLog));
+
+		mockedDT = Mockito.spy(new DataTree());
+		Mockito.doAnswer(new Answer<Void>() {
+
+			@Override
+			public Void answer(InvocationOnMock i) throws Throwable {
+				byte[] data = "Mocked data".getBytes();
+				mockedDT.createNode(i.getArgument(0),
+									data,
+									i.getArgument(2),
+									i.getArgument(3),
+									i.getArgument(4),
+									i.getArgument(5),
+									i.getArgument(6),
+									i.getArgument(7));
+				return null;
+			}
+		}).when(mockedDT).createNode(Mockito.any(),
+									 AdditionalMatchers.not(Mockito.eq("Mocked data".getBytes())),
+									 Mockito.any(),
+									 Mockito.anyLong(),
+									 Mockito.anyInt(),
+									 Mockito.anyLong(),
+									 Mockito.anyLong(),
+									 Mockito.any());
+		Mockito.doReturn(mockedDT).when(mockedZKDb).createDataTree();
+		mockedZKDb.clear();
+
 		sConfig = new ServerConfig();
 		qConfig = new QuorumPeerConfig();
 		zkServer = new ZooKeeperServer(txnLogFactory, sConfig.getTickTime(), sConfig.getMinSessionTimeout(), sConfig.getMaxSessionTimeout(), 
 				sConfig.getClientPortListenBacklog(), mockedZKDb, qConfig.getInitialConfig(), QuorumPeerConfig.isReconfigEnabled());
-		
+
 		serverFactory = ServerCnxnFactory.createFactory(new InetSocketAddress(0), zkServer.getTickTime());
 		serverFactory.setZooKeeperServer(zkServer);
 		port = serverFactory.getLocalPort();
@@ -185,7 +235,18 @@ public class ZNodeCreationIT {
 		Awaitility.await().atMost(10, TimeUnit.SECONDS).until(() -> zk.cnxn.getState() == ZooKeeper.States.CONNECTED);
 		zk.create("/test", "znode data".getBytes(), Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
 		sessionId = zk.getSessionId();
-		assertEquals("znode data", new String(zk.getData("/test", false, new Stat())));
+		assertEquals("Mocked data", new String(zk.getData("/test", false, new Stat())));
+		assertEquals(1, zkServer.getNumAliveConnections());
+		assertEquals(0, zkServer.getLogDirSize());
+		assertEquals("Mocked data", new String(zkServer.getZKDatabase().getData("/test", new Stat(), wc)));
+		Mockito.verify(mockedDT).createNode(Mockito.any(),
+				 AdditionalMatchers.not(Mockito.eq("Mocked data".getBytes())),
+				 Mockito.any(),
+				 Mockito.anyLong(),
+				 Mockito.anyInt(),
+				 Mockito.anyLong(),
+				 Mockito.anyLong(),
+				 Mockito.any());
 	}
 	
 	@Test
@@ -209,9 +270,12 @@ public class ZNodeCreationIT {
 		Awaitility.await().atMost(10, TimeUnit.SECONDS).until(() -> zk.cnxn.getState() == ZooKeeper.States.CONNECTED);
 		zk.create("/test", "znode data".getBytes(), Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
 		sessionId = zk.getSessionId();
+		assertEquals("znode data", new String(zk.getData("/test", false, new Stat())));
+		assertEquals(1, zkServer.getNumAliveConnections());
+		assertTrue(zkServer.getLogDirSize() > 0);
 		assertEquals("znode data", new String(zkServer.getZKDatabase().getData("/test", new Stat(), wc)));
 	}
-	
+
 	@After
     public void cleanUp() {
 		try {
@@ -226,6 +290,10 @@ public class ZNodeCreationIT {
 			if (zkDb != null)
 				zkDb.close();
 	        FileUtils.deleteDirectory(snapDir);
+	        if (tmpDirs != null) {
+	        	for (File dir : tmpDirs)
+	        		FileUtils.deleteDirectory(dir);
+	        }
 		} catch(Exception e) {
 			// do nothing
 		}
