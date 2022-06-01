@@ -239,14 +239,6 @@ public class ZNodeCreationIT {
 		assertEquals(1, zkServer.getNumAliveConnections());
 		assertEquals(0, zkServer.getLogDirSize());
 		assertEquals("Mocked data", new String(zkServer.getZKDatabase().getData("/test", new Stat(), wc)));
-		Mockito.verify(mockedDT).createNode(Mockito.any(),
-				 AdditionalMatchers.not(Mockito.eq("Mocked data".getBytes())),
-				 Mockito.any(),
-				 Mockito.anyLong(),
-				 Mockito.anyInt(),
-				 Mockito.anyLong(),
-				 Mockito.anyLong(),
-				 Mockito.any());
 	}
 	
 	@Test
