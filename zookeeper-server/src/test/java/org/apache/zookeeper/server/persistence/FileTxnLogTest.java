@@ -59,9 +59,9 @@ public class FileTxnLogTest
 			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), TxnBuilder.mockRecord(), TxnBuilder.buildTxnDigest(), null, null},
 			{Type.APPEND, false, null, TxnBuilder.mockRecord(), null, null, null},
 			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), null, TxnBuilder.buildTxnDigest(), null, null},
-//			{Type.APPEND, true, TxnBuilder.spyTxnHeader(), null, null, null, null},
+			{Type.APPEND, true, TxnBuilder.spyTxnHeader(), null, null, null, null},
 			// type, expected, null, null, null, logDirList, snapshotZxid
-			{Type.GET_LFILES, true, null, null, null, LogDirList.NON_EMPTY, Long.valueOf(0)},
+			{Type.GET_LFILES, true, null, null, null, LogDirList.NON_EMPTY, Long.valueOf(1)},
 			{Type.GET_LFILES, true, null, null, null, LogDirList.EMPTY, Long.valueOf(-1)},
 			{Type.GET_LFILES, true, null, null, null, LogDirList.NULL, Long.valueOf(1)},
 		});
@@ -94,12 +94,10 @@ public class FileTxnLogTest
 		
 		logDir = Files.createTempDirectory("zkTest").toFile();
     	fileTxnLog = new FileTxnLog(logDir);
-    	fileTxnLog.append(TxnBuilder.buildTxnHeader(),
-    					  TxnBuilder.buildCreateTxn("/testTxn1", "testTxn1".getBytes())
-    					 );
     	fileTxnLog.append(TxnBuilder.buildTxnHeader(1L, 1, 1L, 0),
-						  TxnBuilder.buildCreateTxn("/testTxn2", "testTxn2".getBytes())
-						 );
+    					  TxnBuilder.buildCreateTxn("/log1", "testTxn1".getBytes()));
+    	fileTxnLog.append(TxnBuilder.buildTxnHeader(1L, 1, this.snapshotZxid + 1, 0),
+						  TxnBuilder.buildCreateTxn("/log2", "testTxn2".getBytes()));
     	fileTxnLog.commit();
 		
 		switch (list) {
@@ -110,7 +108,7 @@ public class FileTxnLogTest
 			this.logDirList = null;
 			break;
 		case NON_EMPTY:
-			this.logDirList = new File[] { logDir };
+			this.logDirList = logDir.listFiles();
 			break;
 
 		default:
@@ -136,8 +134,8 @@ public class FileTxnLogTest
     	
     	switch (list) {
 		case NON_EMPTY:
-			for (int i = 0; i < files.length; i++)
-	    		assertEquals(expected, files[i].getName().contains("testTxn" + i));
+			assertEquals(expected, files.length == 1);
+			assertEquals("log.1", files[0].getName());
 			break;
 		case EMPTY:
 		case NULL:
