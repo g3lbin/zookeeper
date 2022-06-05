@@ -1,7 +1,8 @@
-package org.apache.zookeeper.server;
+package org.apache.zookeeper.server.persistence;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assume.assumeTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.File;
 import java.io.IOException;
@@ -12,10 +13,10 @@ import java.util.Collection;
 import java.util.List;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.jute.OutputArchive;
 import org.apache.jute.Record;
 import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.data.ACL;
-import org.apache.zookeeper.server.persistence.FileTxnLog;
 import org.apache.zookeeper.txn.CreateTxn;
 import org.apache.zookeeper.txn.TxnDigest;
 import org.apache.zookeeper.txn.TxnHeader;
@@ -24,6 +25,10 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
+import org.mockito.Mockito;
+import org.mockito.internal.util.MockUtil;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 @RunWith (value=Parameterized.class)
 public class FileTxnLogTest 
@@ -51,9 +56,10 @@ public class FileTxnLogTest
 	public static Collection<Object[]> data() {
 		return Arrays.asList(new Object[][] {
 			// type, expected, hdr, txn, digest, null, null
-			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), TxnBuilder.buildCreateTxn("/testTxn", "test".getBytes()), TxnBuilder.buildTxnDigest(), null, null},
-			{Type.APPEND, false, null, TxnBuilder.buildCreateTxn("/testTxn", "test".getBytes()), null, null, null},
+			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), TxnBuilder.mockRecord(), TxnBuilder.buildTxnDigest(), null, null},
+			{Type.APPEND, false, null, TxnBuilder.mockRecord(), null, null, null},
 			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), null, TxnBuilder.buildTxnDigest(), null, null},
+//			{Type.APPEND, true, TxnBuilder.spyTxnHeader(), null, null, null, null},
 			// type, expected, null, null, null, logDirList, snapshotZxid
 			{Type.GET_LFILES, true, null, null, null, LogDirList.NON_EMPTY, Long.valueOf(0)},
 			{Type.GET_LFILES, true, null, null, null, LogDirList.EMPTY, Long.valueOf(-1)},
@@ -113,11 +119,14 @@ public class FileTxnLogTest
 	}
 
     @Test
-    public void appendTest() throws IOException
-    {
+    public void appendTest() throws IOException {
     	assumeTrue(type == Type.APPEND);
-    	boolean result = fileTxnLog.append(hdr, txn, digest);
-    	assertEquals(expected, result);
+    	if (MockUtil.isMock(hdr)) {
+    		Exception e = assertThrows(IOException.class, () -> fileTxnLog.append(hdr, txn, digest));
+    		assertEquals(expected, "Faulty serialization for header and txn".equals(e.getMessage()));
+    	} else {
+	    	assertEquals(expected, fileTxnLog.append(hdr, txn, digest));
+    	}
     }
     
     @Test
@@ -161,6 +170,30 @@ public class FileTxnLogTest
     		return new TxnHeader(clientId, cxid, zxid, millis, type);
     	}
     	
+    	public static Record mockRecord() {
+    		return Mockito.mock(Record.class);
+    	}
+    	
+    	public static TxnHeader spyTxnHeader() {
+    		try {
+	    		TxnHeader hdr = Mockito.spy(new TxnHeader());
+	    		Mockito.doAnswer(new Answer<Void>() {
+					@Override
+					public Void answer(InvocationOnMock i) throws Throwable {
+						OutputArchive a_ = i.getArgument(0);
+						String tag = i.getArgument(1);
+						// build an empty record
+						a_.startRecord(hdr,tag);
+			    	    a_.endRecord(hdr,tag);
+						return null;
+					} 
+				}).when(hdr).serialize(Mockito.any(), Mockito.any());
+	    		return hdr;
+    		} catch (Exception e) {
+    			return null;
+    		}
+    	}
+
     	public static CreateTxn buildCreateTxn(String path, byte[] data) {
     		// acl without restrictions for tests scope
     		List<ACL> acl = ZooDefs.Ids.OPEN_ACL_UNSAFE;
