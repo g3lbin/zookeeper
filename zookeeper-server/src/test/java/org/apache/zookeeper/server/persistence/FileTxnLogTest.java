@@ -5,6 +5,7 @@ import static org.junit.Assume.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.time.Instant;
@@ -51,28 +52,30 @@ public class FileTxnLogTest
 	private LogDirList list;
 	private File[] logDirList;
 	private long snapshotZxid;
+	private long lastZxid;
 	
 	@Parameters
 	public static Collection<Object[]> data() {
 		return Arrays.asList(new Object[][] {
-			// type, expected, hdr, txn, digest, null, null
-			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), TxnBuilder.mockRecord(), TxnBuilder.buildTxnDigest(), null, null},
-			{Type.APPEND, false, null, TxnBuilder.mockRecord(), null, null, null},
-			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), null, TxnBuilder.buildTxnDigest(), null, null},
-			{Type.APPEND, true, TxnBuilder.spyTxnHeader(), null, null, null, null},
-			// type, expected, null, null, null, logDirList, snapshotZxid
-			{Type.GET_LFILES, true, null, null, null, LogDirList.NON_EMPTY, Long.valueOf(1)},
-			{Type.GET_LFILES, true, null, null, null, LogDirList.EMPTY, Long.valueOf(-1)},
-			{Type.GET_LFILES, true, null, null, null, LogDirList.NULL, Long.valueOf(1)},
+			// type, expected, hdr, txn, digest, null, null, null
+			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), TxnBuilder.mockRecord(), TxnBuilder.buildTxnDigest(), null, null, null},
+			{Type.APPEND, false, null, TxnBuilder.mockRecord(), null, null, null, null},
+			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), null, TxnBuilder.buildTxnDigest(), null, null, null},
+			{Type.APPEND, true, TxnBuilder.spyTxnHeader(), null, null, null, null, null},
+			// type, expected, null, null, null, logDirList, snapshotZxid, lastZxid
+			{Type.GET_LFILES, true, null, null, null, LogDirList.NON_EMPTY, Long.valueOf(3), Long.valueOf(4)},
+			{Type.GET_LFILES, true, null, null, null, LogDirList.EMPTY, Long.valueOf(-1), Long.valueOf(0)},
+			{Type.GET_LFILES, true, null, null, null, LogDirList.NULL, Long.valueOf(1), Long.valueOf(2)},
+			{Type.GET_LFILES, true, null, null, null, LogDirList.NON_EMPTY, Long.valueOf(4), Long.valueOf(2)},
 		});
 	}
 	
 	public FileTxnLogTest(Type type, boolean expected, TxnHeader hdr, Record txn,
-			TxnDigest digest, LogDirList list, Long snapshotZxid) throws Exception {
+			TxnDigest digest, LogDirList list, Long snapshotZxid, Long lastZxid) throws Exception {
 		if (type == Type.APPEND)
 			configure(type, expected, hdr, txn, digest);
 		else
-			configure(type, expected, list, snapshotZxid);
+			configure(type, expected, list, snapshotZxid, lastZxid);
 	}
 	
 	public void configure(Type type, boolean expected, TxnHeader hdr, Record txn, TxnDigest digest) throws Exception {
@@ -86,19 +89,21 @@ public class FileTxnLogTest
     	fileTxnLog = new FileTxnLog(logDir);
 	}
 	
-	public void configure(Type type, boolean expected, LogDirList list, Long snapshotZxid) throws Exception {
+	public void configure(Type type, boolean expected, LogDirList list, Long snapshotZxid, Long lastZxid) throws Exception {
 		this.type = type;
 		this.expected = expected;
 		this.list = list;
 		this.snapshotZxid = snapshotZxid.longValue();
+		this.lastZxid = lastZxid.longValue();
 		
 		logDir = Files.createTempDirectory("zkTest").toFile();
     	fileTxnLog = new FileTxnLog(logDir);
-    	fileTxnLog.append(TxnBuilder.buildTxnHeader(1L, 1, 1L, 0),
-    					  TxnBuilder.buildCreateTxn("/log1", "testTxn1".getBytes()));
-    	fileTxnLog.append(TxnBuilder.buildTxnHeader(1L, 1, this.snapshotZxid + 1, 0),
-						  TxnBuilder.buildCreateTxn("/log2", "testTxn2".getBytes()));
-    	fileTxnLog.commit();
+    	for (long i = 1; i <= this.lastZxid; i++) {
+    		fileTxnLog.logStream = null;
+	    	fileTxnLog.append(TxnBuilder.buildTxnHeader(1L, 1, i, 0),
+	    					  TxnBuilder.buildCreateTxn("/log" + i, ("testTxn" + i).getBytes()));
+	    	fileTxnLog.commit();
+    	}
 		
 		switch (list) {
 		case EMPTY:
@@ -108,7 +113,14 @@ public class FileTxnLogTest
 			this.logDirList = null;
 			break;
 		case NON_EMPTY:
-			this.logDirList = logDir.listFiles();
+			// Create a FilenameFilter
+            FilenameFilter filter = new FilenameFilter() {
+  
+                public boolean accept(File f, String name) {
+                    return name.startsWith("log");
+                }
+            };
+			this.logDirList = logDir.listFiles(filter);
 			break;
 
 		default:
@@ -134,8 +146,14 @@ public class FileTxnLogTest
     	
     	switch (list) {
 		case NON_EMPTY:
-			assertEquals(expected, files.length == 1);
-			assertEquals("log.1", files[0].getName());
+			long len = (this.snapshotZxid >= this.lastZxid) ? 1L : (this.lastZxid - this.snapshotZxid + 1);
+			assertEquals(len, files.length);
+			if (len == 1) {
+				assertEquals("log." + this.lastZxid, files[0].getName());
+			} else {
+				for (long i = this.snapshotZxid; i <= this.lastZxid; i++)
+					assertEquals("log." + i, files[(int) (i - this.snapshotZxid)].getName());
+			}
 			break;
 		case EMPTY:
 		case NULL:
