@@ -1,24 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-  <!--
-  /**
-   * Licensed to the Apache Software Foundation (ASF) under one
-   * or more contributor license agreements.  See the NOTICE file
-   * distributed with this work for additional information
-   * regarding copyright ownership.  The ASF licenses this file
-   * to you under the Apache License, Version 2.0 (the
-   * "License"); you may not use this file except in compliance
-   * with the License.  You may obtain a copy of the License at
-   *
-   *     http://www.apache.org/licenses/LICENSE-2.0
-   *
-   * Unless required by applicable law or agreed to in writing, software
-   * distributed under the License is distributed on an "AS IS" BASIS,
-   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   * See the License for the specific language governing permissions and
-   * limitations under the License.
-   */
-  -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <!-- /** * Licensed to the Apache Software Foundation (ASF) under one * 
+    or more contributor license agreements. See the NOTICE file * distributed 
+    with this work for additional information * regarding copyright ownership. 
+    The ASF licenses this file * to you under the Apache License, Version 2.0 
+    (the * "License"); you may not use this file except in compliance * with 
+    the License. You may obtain a copy of the License at * * http://www.apache.org/licenses/LICENSE-2.0 
+    * * Unless required by applicable law or agreed to in writing, software * 
+    distributed under the License is distributed on an "AS IS" BASIS, * WITHOUT 
+    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. * See the 
+    License for the specific language governing permissions and * limitations 
+    under the License. */ -->
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>org.apache.zookeeper</groupId>
@@ -118,9 +112,9 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-       <groupId>io.dropwizard.metrics</groupId>
-       <artifactId>metrics-core</artifactId>
-       <scope>provided</scope>
+      <groupId>io.dropwizard.metrics</groupId>
+      <artifactId>metrics-core</artifactId>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.kerby</groupId>
@@ -266,25 +260,13 @@
         </executions>
       </plugin>
 
-      <!--
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <configuration>
-          <includes>
-            <include>**/*Test.java</include>
-          </includes>
-          <forkCount>${surefire-forkcount}</forkCount>
-          <reuseForks>false</reuseForks>
-          <argLine>@{argLine} -Xmx512m -Dtest.junit.threads=${surefire-forkcount} -Dzookeeper.junit.threadid=${surefire.forkNumber} -javaagent:${org.jmockit:jmockit:jar}</argLine>
-          <basedir>${project.basedir}</basedir>
-          <systemPropertyVariables>
-            <build.test.dir>${project.build.directory}/surefire</build.test.dir>
-            <zookeeper.DigestAuthenticationProvider.superDigest>super:D/InIHSb7yEEbrWz8b9l71RjZJU=</zookeeper.DigestAuthenticationProvider.superDigest>
-          </systemPropertyVariables>
-        </configuration>
-      </plugin>
-      -->
+      <!-- <plugin> <groupId>org.apache.maven.plugins</groupId> <artifactId>maven-surefire-plugin</artifactId> 
+        <configuration> <includes> <include>**/*Test.java</include> </includes> <forkCount>${surefire-forkcount}</forkCount> 
+        <reuseForks>false</reuseForks> <argLine>@{argLine} -Xmx512m -Dtest.junit.threads=${surefire-forkcount} 
+        -Dzookeeper.junit.threadid=${surefire.forkNumber} -javaagent:${org.jmockit:jmockit:jar}</argLine> 
+        <basedir>${project.basedir}</basedir> <systemPropertyVariables> <build.test.dir>${project.build.directory}/surefire</build.test.dir> 
+        <zookeeper.DigestAuthenticationProvider.superDigest>super:D/InIHSb7yEEbrWz8b9l71RjZJU=</zookeeper.DigestAuthenticationProvider.superDigest> 
+        </systemPropertyVariables> </configuration> </plugin> -->
 
       <plugin>
         <groupId>org.apache.felix</groupId>
@@ -342,7 +324,7 @@
           </execution>
         </executions>
       </plugin>
-      
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
@@ -361,10 +343,10 @@
           </execution>
         </executions>
       </plugin>
-        
-     </plugins>
+
+    </plugins>
   </build>
-  
+
   <profiles>
     <!-- ba-dua profile -->
     <profile>
@@ -434,6 +416,51 @@
                     <argument>${project.build.directory}/badua.xml</argument>
                   </arguments>
                 </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <!-- PIT profile -->
+    <profile>
+      <id>mutation-coverage</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+
+      <properties>
+        <pit.version>1.8.0</pit.version>
+        <withHistory>true</withHistory>
+        <verbose>false</verbose>
+      </properties>
+
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.pitest</groupId>
+            <artifactId>pitest-maven</artifactId>
+            <version>${pit.version}</version>
+            <configuration>
+              <targetClasses>
+                <param>org.apache.zookeeper.server.persistence.FileTxnLog</param>
+              </targetClasses>
+              <targetTests>
+                <param>org.apache.zookeeper.server.persistence.FileTxnLogTest</param>
+              </targetTests>
+              <avoidCallsTo>
+                <avoidCallsTo>java.util.logging</avoidCallsTo>
+                <avoidCallsTo>org.apache.log4j</avoidCallsTo>
+                <avoidCallsTo>org.slf4j</avoidCallsTo>
+                <avoidCallsTo>org.apache.commons.logging</avoidCallsTo>
+              </avoidCallsTo>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>mutationCoverage</goal>
+                </goals>
+                <phase>test-compile</phase>
               </execution>
             </executions>
           </plugin>

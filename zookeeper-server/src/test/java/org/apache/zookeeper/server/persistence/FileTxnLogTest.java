@@ -4,7 +4,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assume.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -12,8 +14,11 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.zip.Adler32;
+import java.util.zip.Checksum;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.jute.BinaryInputArchive;
 import org.apache.jute.OutputArchive;
 import org.apache.jute.Record;
 import org.apache.zookeeper.ZooDefs;
@@ -135,7 +140,26 @@ public class FileTxnLogTest
     		Exception e = assertThrows(IOException.class, () -> fileTxnLog.append(hdr, txn, digest));
     		assertEquals(expected, "Faulty serialization for header and txn".equals(e.getMessage()));
     	} else {
+    		fileTxnLog.lastZxidSeen = -1L;
 	    	assertEquals(expected, fileTxnLog.append(hdr, txn, digest));
+	    	fileTxnLog.commit();
+	    	if (hdr != null && hdr.getZxid() > -1L)
+	    		assertEquals(hdr.getZxid(), fileTxnLog.lastZxidSeen);
+	    	if (hdr != null && fileTxnLog.logFileWrite != null) {
+		    	FileInputStream fis = new FileInputStream(fileTxnLog.logFileWrite);
+		    	BufferedInputStream logStream = new BufferedInputStream(fis);
+		    	BinaryInputArchive ia = BinaryInputArchive.getArchive(logStream);
+		    	FileHeader fhdr = new FileHeader();
+		    	fhdr.deserialize(ia, "fileheader");
+		    	assertEquals(FileTxnLog.TXNLOG_MAGIC, fhdr.getMagic());
+		    	assertEquals(67108880L, fileTxnLog.logFileWrite.length());
+
+		    	long crcValue = ia.readLong("txnEntryCRC");
+	            byte[] bytes = ia.readBuffer("txnEntry");
+	            Checksum crc = new Adler32();
+	            crc.update(bytes, 0, bytes.length);
+	            assertEquals(crcValue, crc.getValue());
+	    	}
     	}
     }
     
