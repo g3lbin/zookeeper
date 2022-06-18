@@ -63,8 +63,8 @@ public class FileTxnLogTest
 	public static Collection<Object[]> data() {
 		return Arrays.asList(new Object[][] {
 			// type, expected, hdr, txn, digest, null, null, null
-			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), TxnBuilder.mockRecord(), TxnBuilder.buildTxnDigest(), null, null, null},
-			{Type.APPEND, false, null, TxnBuilder.mockRecord(), null, null, null, null},
+			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), TxnBuilder.buildCreateTxn("/test", ("testTxn").getBytes()), TxnBuilder.buildTxnDigest(), null, null, null},
+			{Type.APPEND, false, null, TxnBuilder.buildCreateTxn("/test", ("testTxn").getBytes()), null, null, null, null},
 			{Type.APPEND, true, TxnBuilder.buildTxnHeader(), null, TxnBuilder.buildTxnDigest(), null, null, null},
 			{Type.APPEND, true, TxnBuilder.spyTxnHeader(), null, null, null, null, null},
 			// type, expected, null, null, null, logDirList, snapshotZxid, lastZxid
